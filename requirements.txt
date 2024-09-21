@@ -1,6 +1,3 @@
 tkcalendar
-sqlalchemy
 pandas
 yfinance
-psycopg2-binary
-openpyxl

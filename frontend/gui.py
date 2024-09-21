@@ -1,112 +1,86 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog
-from tkinter import ttk
 from tkcalendar import DateEntry
-from backend.operations import run_operations, update_operations, show_all_businesses
-from src.data_loader import load_excel  # Ajuste aquí
+from backend.operations import save_price, show_price_data
+import pandas as pd
+import yfinance as yf
+
+
+def on_submit():
+    ticker = ticker_entry.get()
+    start_date = start_date_entry.get_date()
+    end_date = end_date_entry.get_date()
+
+    # Obtener datos de Yahoo Finance
+    try:
+        data = yf.download(ticker, start=start_date, end=end_date)
+        data.reset_index(inplace=True)
+        data = data.rename(columns={"Date": "date", "Close": "closing_price"})
+        df = data[["date", "closing_price"]]
+
+        save_price(df, ticker)
+        messagebox.showinfo("Información", f"Datos guardados para el ticker {ticker}")
+    except Exception as e:
+        messagebox.showerror(
+            "Error", f"No se pudieron obtener los datos para el ticker {ticker}: {e}"
+        )
+
+
+def on_show():
+    ticker = ticker_entry.get()
+    show_price_data(ticker)
+
+
+def load_excel():
+    file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx *.xls")])
+    if not file_path:
+        return
+
+    try:
+        excel_data = pd.read_excel(file_path, header=None)
+        col = 0
+        while col < excel_data.shape[1]:
+            if excel_data.iloc[0, col] == "Fecha" and excel_data.iloc[0, col + 1] != "":
+                ticker = excel_data.iloc[0, col + 1]
+                dates = pd.to_datetime(excel_data.iloc[1:, col], format="%d.%m.%Y")
+                prices = excel_data.iloc[1:, col + 1].astype(float)
+                df = pd.DataFrame({"date": dates, "closing_price": prices})
+                save_price(df, ticker)
+                col += 2
+            else:
+                col += 1
+        messagebox.showinfo("Información", "Datos cargados desde el archivo Excel")
+    except Exception as e:
+        messagebox.showerror(
+            "Error", f"No se pudieron cargar los datos desde el archivo Excel: {e}"
+        )
 
 
 def create_gui():
+    global ticker_entry, start_date_entry, end_date_entry
+
     root = tk.Tk()
-    root.title("Finanzas")
-    root.configure(background="#f0f0f0")
+    root.title("Gestor de Finanzas")
 
-    def show_menu():
-        for widget in root.winfo_children():
-            widget.destroy()
+    tk.Label(root, text="Ticker:").grid(row=0, column=0)
+    ticker_entry = tk.Entry(root)
+    ticker_entry.grid(row=0, column=1)
 
-        ttk.Label(
-            root, text="Seleccione una opción:", background="#f0f0f0", anchor="center"
-        ).grid(row=0, column=0, columnspan=2, pady=10)
+    tk.Label(root, text="Fecha de inicio:").grid(row=1, column=0)
+    start_date_entry = DateEntry(root)
+    start_date_entry.grid(row=1, column=1)
 
-        ttk.Button(root, text="Agregar acción", command=show_add_action).grid(
-            row=1, column=0, columnspan=2, pady=5
-        )
-        ttk.Button(root, text="Actualizar acción", command=show_update_action).grid(
-            row=2, column=0, columnspan=2, pady=5
-        )
-        ttk.Button(
-            root, text="Mostrar todas las acciones", command=show_all_businesses_action
-        ).grid(row=3, column=0, columnspan=2, pady=5)
-        ttk.Button(root, text="Cargar archivo Excel", command=load_excel_action).grid(
-            row=4, column=0, columnspan=2, pady=5
-        )
+    tk.Label(root, text="Fecha de fin:").grid(row=2, column=0)
+    end_date_entry = DateEntry(root)
+    end_date_entry.grid(row=2, column=1)
 
-    def show_add_action():
-        for widget in root.winfo_children():
-            widget.destroy()
+    submit_button = tk.Button(root, text="Guardar Datos", command=on_submit)
+    submit_button.grid(row=3, column=0, columnspan=2)
 
-        ttk.Label(root, text="Ticker:", background="#f0f0f0", anchor="center").grid(
-            row=0, column=0, padx=10, pady=5
-        )
-        ttk.Label(
-            root, text="Fecha de inicio:", background="#f0f0f0", anchor="center"
-        ).grid(row=1, column=0, padx=10, pady=5)
-        ttk.Label(
-            root, text="Fecha de fin:", background="#f0f0f0", anchor="center"
-        ).grid(row=2, column=0, padx=10, pady=5)
+    show_button = tk.Button(root, text="Mostrar Datos", command=on_show)
+    show_button.grid(row=4, column=0, columnspan=2)
 
-        ticker_entry = ttk.Entry(root, justify="center")
-        start_date_entry = DateEntry(root, date_pattern="yyyy-mm-dd", justify="center")
-        end_date_entry = DateEntry(root, date_pattern="yyyy-mm-dd", justify="center")
+    load_button = tk.Button(root, text="Cargar desde Excel", command=load_excel)
+    load_button.grid(row=5, column=0, columnspan=2)
 
-        ticker_entry.grid(row=0, column=1, padx=10, pady=5)
-        start_date_entry.grid(row=1, column=1, padx=10, pady=5)
-        end_date_entry.grid(row=2, column=1, padx=10, pady=5)
-
-        def on_submit():
-            ticker = ticker_entry.get().upper()
-            start_date = start_date_entry.get_date().strftime("%Y-%m-%d")
-            end_date = end_date_entry.get_date().strftime("%Y-%m-%d")
-            result = run_operations(ticker, start_date, end_date)
-            messagebox.showinfo("Resultado", result)
-
-        submit_button = ttk.Button(root, text="Ejecutar", command=on_submit)
-        submit_button.grid(row=3, column=0, columnspan=2, pady=10)
-
-        back_button = ttk.Button(root, text="Volver", command=show_menu)
-        back_button.grid(row=4, column=0, columnspan=2, pady=10)
-
-    def show_update_action():
-        for widget in root.winfo_children():
-            widget.destroy()
-
-        ttk.Label(root, text="Ticker:", background="#f0f0f0", anchor="center").grid(
-            row=0, column=0, padx=10, pady=5
-        )
-
-        ticker_entry = ttk.Entry(root, justify="center")
-        ticker_entry.grid(row=0, column=1, padx=10, pady=5)
-
-        def on_submit():
-            ticker = ticker_entry.get().upper()
-            result = update_operations(ticker)
-            messagebox.showinfo("Resultado", result)
-
-        submit_button = ttk.Button(root, text="Ejecutar", command=on_submit)
-        submit_button.grid(row=1, column=0, columnspan=2, pady=10)
-
-        back_button = ttk.Button(root, text="Volver", command=show_menu)
-        back_button.grid(row=2, column=0, columnspan=2, pady=10)
-
-    def show_all_businesses_action():
-        businesses = show_all_businesses()
-        messagebox.showinfo("Acciones", "\n".join(businesses))
-
-    def load_excel_action():
-        file_path = filedialog.askopenfilename(filetypes=[("Excel files", "*.xlsx")])
-        if file_path:
-            try:
-                load_excel(file_path)
-                messagebox.showinfo(
-                    "Éxito", "Archivo cargado y procesado correctamente."
-                )
-            except Exception as e:
-                messagebox.showerror("Error", f"Error al cargar el archivo: {e}")
-
-    show_menu()
     root.mainloop()
-
-
-if __name__ == "__main__":
-    create_gui()

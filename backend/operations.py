@@ -1,56 +1,26 @@
-from datetime import datetime, timedelta
-from sqlalchemy import text
-from sqlalchemy.exc import SQLAlchemyError
-from src.config import connect_bd
-from src.yahoo_finance import get_yahoo_data, get_action_name
-from src.db_operations import insert_business, get_business_id, save_price, verify_business_insertion, list_businesses
+import pandas as pd
 
-def run_operations(ticker, start_date, end_date):
-    engine = connect_bd()
-    df_yahoo = get_yahoo_data(ticker, start_date, end_date)
-    business_name = get_action_name(ticker)
-    
-    with engine.begin() as conn:
-        insert_business(ticker, business_name, conn)
-        if verify_business_insertion(ticker, conn):
-            business_id = get_business_id(ticker, conn)
-            if business_id:
-                df_yahoo.reset_index(inplace=True)
-                df_yahoo = df_yahoo[['Date', 'Close']]
-                print(df_yahoo)
-                df_yahoo.columns = ['date', 'closing_price']
-                save_price(df_yahoo, business_id, conn)
-                return "Datos guardados correctamente."
-            else:
-                return "No se pudo obtener el ID de la empresa."
+# Variable global para almacenar los datos
+price_data = {}
+
+
+def save_price(df, ticker):
+    global price_data
+    df = df.copy()
+    df = df[["date", "closing_price"]]
+    try:
+        if ticker in price_data:
+            price_data[ticker] = pd.concat([price_data[ticker], df])
         else:
-            return "No se pudo insertar la empresa."
+            price_data[ticker] = df
+        print(f"Datos guardados correctamente para el ticker {ticker}.")
+    except Exception as e:
+        print(f"Error saving price data for {ticker}: {e}")
 
-def update_operations(ticker):
-    engine = connect_bd()
-    
-    with engine.begin() as conn:
-        business_id = get_business_id(ticker, conn)
-        if business_id:
-            query = text("SELECT MAX(date) FROM price WHERE business_id = :business_id;")
-            result = conn.execute(query, {'business_id': business_id})
-            last_date = result.fetchone()[0]
-            if last_date:
-                start_date = last_date + timedelta(days=1)
-                end_date = datetime.now().strftime('%Y-%m-%d')
-                df_yahoo = get_yahoo_data(ticker, start_date, end_date)
-                df_yahoo.reset_index(inplace=True)
-                df_yahoo = df_yahoo[['Date', 'Close']]
-                df_yahoo.columns = ['date', 'closing_price']
-                save_price(df_yahoo, business_id, conn)
-                return "Datos actualizados correctamente."
-            else:
-                return "No se encontraron datos para actualizar."
-        else:
-            return "No se pudo obtener el ID de la empresa."
 
-def show_all_businesses():
-    engine = connect_bd()
-    with engine.begin() as conn:
-        businesses = list_businesses(conn)
-        return businesses
+def show_price_data(ticker):
+    global price_data
+    if ticker in price_data:
+        print(price_data[ticker])
+    else:
+        print(f"No hay datos disponibles para el ticker {ticker}.")
