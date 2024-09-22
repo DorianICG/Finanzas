@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, filedialog
 from tkcalendar import DateEntry
-from backend.operations import save_price, show_price_data
+from backend.operations import save_price, show_price_data, calculate_all
 import pandas as pd
 import yfinance as yf
 
@@ -56,6 +56,28 @@ def load_excel():
         )
 
 
+def calculate():
+    ticker = ticker_entry.get()
+    if ticker.lower() == "todos":
+        result = calculate_all()
+    else:
+        start_date = start_date_entry.get_date()
+        end_date = end_date_entry.get_date()
+        result = calculate_all(ticker, start_date, end_date)
+
+    if result:
+        rendimientos, historica, variaciones, media_cero = result
+        message = (
+            f"La volatilidad histórica es: {historica}\n"
+            f"La media cero de los retornos es: {media_cero}"
+        )
+        messagebox.showinfo("Resultado", message)
+    else:
+        messagebox.showerror(
+            "Error", "No se pudieron calcular los datos."
+        )
+
+
 def create_gui():
     global ticker_entry, start_date_entry, end_date_entry
 
@@ -82,5 +104,8 @@ def create_gui():
 
     load_button = tk.Button(root, text="Cargar desde Excel", command=load_excel)
     load_button.grid(row=5, column=0, columnspan=2)
+    
+    calculate_button = tk.Button(root, text="Calcular Todo", command=calculate)
+    calculate_button.grid(row=6, column=0, columnspan=2)
 
     root.mainloop()
